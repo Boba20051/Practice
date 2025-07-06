@@ -33,8 +33,15 @@
 
 ### 1. Склонируйте или скачайте проект
 ```bash
-git clone https://github.com/your-username/chat-project.git
-cd chat-project
+git clone https://github.com/your-username/Practice.git
+cd Practice
+```
+###2. Запуск сервера
+```bash
 python server.py
+```
+###3. Запуск клиента
+```bash
 python client.py
+```
 
