@@ -33,7 +33,7 @@
 
 ### 1. Склонируйте или скачайте проект
 ```bash
-git clone https://github.com/your-username/Practice.git
+git clone https://github.com/Boba20051/Practice.git
 cd Practice
 ```
 ### 2. Запуск сервера
