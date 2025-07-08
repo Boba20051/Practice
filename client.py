@@ -1,7 +1,7 @@
 import socket
 import threading
 import tkinter as tk
-from tkinter import messagebox, simpledialog
+from tkinter import messagebox
 import json
 import time
 
@@ -10,17 +10,55 @@ class ChatClient:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("Чат")
-        self.root.geometry("800x600")
+        self.root.geometry("400x200")
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
 
         self.nickname = ""
         self.client_socket = None
         self.connected = False
+        self.server_ip = ""
+        self.server_port = 0
 
-        self.setup_ui()
-        self.connect_to_server()
+        # Инициализация UI элементов
+        self.nick_entry = None
+        self.ip_entry = None
+        self.port_entry = None
+        self.user_listbox = None
+        self.chat_text = None
+        self.message_entry = None
+
+        self.Login_menu()
+        self.root.mainloop()
+
+    def Login_menu(self):
+        # Очищаем окно перед созданием элементов входа
+        for widget in self.root.winfo_children():
+            widget.destroy()
+
+        tk.Label(self.root, text="Никнейм:").pack(pady=(10, 0))
+        self.nick_entry = tk.Entry(self.root)
+        self.nick_entry.pack(padx=20, pady=(0, 10), fill=tk.X)
+        self.nick_entry.insert(0, "User")
+
+        tk.Label(self.root, text="IP сервера:").pack()
+        self.ip_entry = tk.Entry(self.root)
+        self.ip_entry.pack(padx=20, pady=(0, 10), fill=tk.X)
+        self.ip_entry.insert(0, "127.0.0.1")
+
+        tk.Label(self.root, text="Порт сервера:").pack()
+        self.port_entry = tk.Entry(self.root)
+        self.port_entry.pack(padx=20, pady=(0, 10), fill=tk.X)
+        self.port_entry.insert(0, "5555")
+
+        self.connect_btn = tk.Button(self.root, text="Подключиться", command=self.on_connect)
+        self.connect_btn.pack(pady=10)
 
     def setup_ui(self):
+        self.root.geometry("800x600")
+        # Очищаем окно перед созданием чата
+        for widget in self.root.winfo_children():
+            widget.destroy()
+
         # Сетка интерфейса
         self.root.grid_columnconfigure(0, weight=1)
         self.root.grid_rowconfigure(0, weight=1)
@@ -53,31 +91,37 @@ class ChatClient:
         self.send_button = tk.Button(self.input_frame, text="Отправить", command=self.send_message)
         self.send_button.pack(side="right")
 
-    def connect_to_server(self):
-        server_ip = simpledialog.askstring("Подключение", "IP сервера:", initialvalue="127.0.0.1")
-        if not server_ip:
-            self.root.destroy()
+    def on_connect(self):
+        self.nickname = self.nick_entry.get().strip()
+        self.server_ip = self.ip_entry.get().strip()
+
+        try:
+            self.server_port = int(self.port_entry.get().strip())
+        except ValueError:
+            messagebox.showerror("Ошибка", "Порт должен быть числом")
             return
 
-        server_port = simpledialog.askinteger("Подключение", "Порт сервера:", initialvalue=5555)
-        if not server_port:
-            self.root.destroy()
-            return
-
-        self.nickname = simpledialog.askstring("Никнейм", "Введите ваш никнейм:")
         if not self.nickname:
-            self.root.destroy()
+            messagebox.showerror("Ошибка", "Введите никнейм")
+            return
+
+        if not self.server_ip:
+            messagebox.showerror("Ошибка", "Введите IP сервера")
             return
 
         try:
             self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.client_socket.connect((server_ip, server_port))
+            self.client_socket.connect((self.server_ip, self.server_port))
             self.client_socket.send(self.nickname.encode('utf-8'))
             self.connected = True
+
+            # Переключаемся на интерфейс чата после успешного подключения
+            self.setup_ui()
             threading.Thread(target=self.receive_messages, daemon=True).start()
+
+            self.display_system_message(f"Подключено к серверу {self.server_ip}:{self.server_port}")
         except Exception as e:
             messagebox.showerror("Ошибка", f"Не удалось подключиться: {e}")
-            self.root.destroy()
 
     def receive_messages(self):
         while self.connected:
@@ -109,57 +153,61 @@ class ChatClient:
                 break
 
     def update_user_list(self, users):
-        self.user_listbox.delete(0, "end")
-        for user in users:
-            if user:
-                self.user_listbox.insert("end", user)
+        if self.user_listbox:  # Проверяем, что список пользователей инициализирован
+            self.user_listbox.delete(0, "end")
+            for user in users:
+                if user:
+                    self.user_listbox.insert("end", user)
 
     def display_system_message(self, text):
-        self.chat_text.config(state="normal")
-        self.chat_text.insert("end", f"⚡ {text}\n", "system")
-        self.chat_text.config(state="disabled")
-        self.chat_text.see("end")
+        if self.chat_text:  # Проверяем, что чат инициализирован
+            self.chat_text.config(state="normal")
+            self.chat_text.insert("end", f"⚡ {text}\n", "system")
+            self.chat_text.config(state="disabled")
+            self.chat_text.see("end")
 
     def display_message(self, sender, text, timestamp, is_me=True, is_history=False):
-        self.chat_text.config(state="normal")
-        if is_me:
-            prefix = "Я"
-            tag = "my_message"
-        else:
-            prefix = sender
-            tag = "other_message"
+        if self.chat_text:  # Проверяем, что чат инициализирован
+            self.chat_text.config(state="normal")
+            if is_me:
+                prefix = "Я"
+                tag = "my_message"
+            else:
+                prefix = sender
+                tag = "other_message"
 
-        # Если сообщение из истории, делаем его немного бледнее
-        if is_history:
-            self.chat_text.tag_config("history_message", foreground="#888888")
-            tag = "history_message"
+            # Если сообщение из истории, делаем его немного бледнее
+            if is_history:
+                self.chat_text.tag_config("history_message", foreground="#888888")
+                tag = "history_message"
 
-        self.chat_text.insert(
-            "end",
-            f"[{timestamp}] {prefix}: {text}\n",
-            tag
-        )
-        self.chat_text.config(state="disabled")
-        self.chat_text.see("end")
+            self.chat_text.insert(
+                "end",
+                f"[{timestamp}] {prefix}: {text}\n",
+                tag
+            )
+            self.chat_text.config(state="disabled")
+            self.chat_text.see("end")
 
     def send_message(self, event=None):
-        message = self.message_entry.get()
-        if message and self.connected:
-            try:
-                # Локальное отображение своего сообщения
-                self.display_message(
-                    self.nickname,
-                    message,
-                    time.strftime("%H:%M:%S"),
-                    is_me=True
-                )
+        if self.message_entry and self.connected:  # Проверяем, что поле ввода инициализировано
+            message = self.message_entry.get()
+            if message:
+                try:
+                    # Локальное отображение своего сообщения
+                    self.display_message(
+                        self.nickname,
+                        message,
+                        time.strftime("%H:%M:%S"),
+                        is_me=True
+                    )
 
-                # Отправка на сервер
-                self.client_socket.send(message.encode('utf-8'))
-                self.message_entry.delete(0, "end")
-            except Exception as e:
-                self.display_system_message(f"Ошибка отправки: {e}")
-                self.connected = False
+                    # Отправка на сервер
+                    self.client_socket.send(message.encode('utf-8'))
+                    self.message_entry.delete(0, "end")
+                except Exception as e:
+                    self.display_system_message(f"Ошибка отправки: {e}")
+                    self.connected = False
 
     def on_close(self):
         if self.connected:
@@ -169,10 +217,6 @@ class ChatClient:
                 pass
         self.root.destroy()
 
-    def run(self):
-        self.root.mainloop()
-
 
 if __name__ == "__main__":
     client = ChatClient()
-    client.run()
